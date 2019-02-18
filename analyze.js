@@ -1,18 +1,38 @@
-import { readdir, readFile } from "fs";
+import { readdir, readFile, writeFile } from "fs";
 import { promisify } from "util";
 import { join } from "path";
-import { spawn } from "child_process";
-spawn("git", [
-  "clone",
-  "https://github.com/fastlane/fastlane",
+import Commander from "commander";
+
+const path = join(
   process.cwd(),
-  "fastlane"
-]);
-const path = join(process.cwd(), "fastlane", "fastlane", "swift");
+  "node_modules",
+  "fastlane-git",
+  "fastlane",
+  "swift"
+);
+Commander.option(
+  "-o --output <file>",
+  "File to write results to (leave blank for standard output"
+);
+Commander.parse(process.argv);
+
 const start = async () => {
   const funcs = await getFunctions(join(path, "Fastlane.swift"));
-  const funcinfo = funcs.map(analyzeFunction).filter(f => f);
-  console.log(JSON.stringify(funcinfo, null, 2));
+  const funcinfo = funcs
+    .map(analyzeFunction)
+    .filter(f => f)
+    .reduce(
+      (o, { methodName, rubyArguments }) => ({
+        ...o,
+        [methodName]: rubyArguments
+      }),
+      {}
+    );
+  if (Commander.output) {
+    await promisify(writeFile)(Commander.output, JSON.stringify(funcinfo));
+  } else {
+    console.log(JSON.stringify(funcinfo, null, 2));
+  }
 };
 const getType = (type, defaultValue = null) => {
   let isNullable = false;
@@ -168,5 +188,4 @@ const getFunctions = async fp => {
       } else return o;
     }, []);
 };
-
 start();
